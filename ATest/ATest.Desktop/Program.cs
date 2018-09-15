@@ -1,6 +1,5 @@
 ﻿using System;
 using Eto.Forms;
-using Eto.Drawing;
 
 namespace ATest.Desktop
 {
