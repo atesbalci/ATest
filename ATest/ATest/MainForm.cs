@@ -1,7 +1,9 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using ATest.NodeSystem;
+using Eto;
 using Eto.Forms;
 using Eto.Drawing;
 
@@ -9,15 +11,27 @@ namespace ATest
 {
 	public class MainForm : Form
 	{
+	    private readonly string _lastSaveLocationFile;
 	    private readonly TreeGridView _tree;
 	    private readonly StackLayout _nodeContent;
 	    private readonly Node _rootNode;
 
 	    private string _openFile;
 
-		public MainForm()
+	    private string OpenFile
+	    {
+	        get => _openFile;
+	        set
+	        {
+	            if (_openFile == value) return;
+                File.WriteAllText(_lastSaveLocationFile, value);
+	            _openFile = value;
+	        }
+	    }
+
+	    public MainForm()
 		{
-			Title = "My Eto Form";
+			Title = "ATest";
 			ClientSize = new Size(800, 600);
 
             var layout = new DynamicLayout()
@@ -27,7 +41,19 @@ namespace ATest
 
 		    Content = layout;
 
-            // create a few commands that can be used for the menu and toolbar
+		    _rootNode = new Category { Name = "Root" };
+		    _lastSaveLocationFile = Path.Combine(EtoEnvironment.GetFolderPath(EtoSpecialFolder.ApplicationSettings),
+		        "LastSaveLocation.txt");
+
+            #region Save/Load Stuff
+
+            try
+            {
+                OpenFile = File.ReadAllText(_lastSaveLocationFile);
+                _rootNode.FromXml(XDocument.Parse(File.ReadAllText(OpenFile)).Root);
+		    }
+		    catch (Exception e) { }
+
 		    var filter = new FileFilter
 		    {
 		        Extensions = new[] { "xml", "XML" },
@@ -45,8 +71,8 @@ namespace ATest
 		        if (result == DialogResult.Yes || result == DialogResult.Ok)
 		        {
 		            _rootNode.FromXml(XDocument.Parse(File.ReadAllText(dialog.FileName)).Root);
-                    RefreshTree();
-		            _openFile = dialog.FileName;
+		            RefreshTree();
+		            OpenFile = dialog.FileName;
 		        }
 		    };
 		    var saveAsCommand = new Command { ToolBarText = "Save As..." };
@@ -65,28 +91,33 @@ namespace ATest
 		            {
 		                name += ".xml";
 		            }
-		            _openFile = name;
+		            OpenFile = name;
 		            File.WriteAllText(name, _rootNode.ToXml().ToString());
 		        }
 		    };
 		    var saveCommand = new Command { ToolBarText = "Save" };
 		    saveCommand.Executed += (sender, e) =>
 		    {
-		        if (!string.IsNullOrEmpty(_openFile))
+		        if (!string.IsNullOrEmpty(OpenFile))
 		        {
-		            File.WriteAllText(_openFile, _rootNode.ToXml().ToString());
+		            File.WriteAllText(OpenFile, _rootNode.ToXml().ToString());
 		        }
 		        else
 		        {
 		            saveAsCommand.Execute();
 		        }
 		    };
-            ToolBar = new ToolBar { Items = { loadCommand, saveCommand, saveAsCommand } };
+		    ToolBar = new ToolBar { Items = { loadCommand, saveCommand, saveAsCommand } };
 
-            //Program
-            _rootNode = new Category { Name = "Root" };
+            #endregion
+
+		    #region Program
+
 		    layout.BeginHorizontal();
-		    _nodeContent = new StackLayout();
+		    _nodeContent = new StackLayout
+		    {
+		        Padding = 10
+		    };
 		    var addCategoryCommand = new Command();
 		    addCategoryCommand.Executed += (sender, args) =>
 		    {
@@ -111,11 +142,13 @@ namespace ATest
 		    cell.Paint += (sender, args) =>
 		    {
 		        var node = GetNodeFromTreeItem((ITreeGridItem) args.Item);
-		        var color = IsNodePerformed(node) ? Colors.Green : Colors.Red;
-                args.Graphics.DrawText(new Font(SystemFont.Default), color, args.ClipRectangle.Location, node.Name);
+		        var color = args.IsSelected ? Colors.White : IsNodePerformed(node) ? new Color(0f, 0.5f, 0f) : Colors.Red;
+		        args.Graphics.DrawText(new Font(SystemFont.Bold), color, args.ClipRectangle.Location, node.Name);
 		    };
 		    _tree = new TreeGridView
 		    {
+		        RowHeight = 20,
+		        AllowMultipleSelection = false,
 		        Columns =
 		        {
 		            new GridColumn
@@ -139,7 +172,7 @@ namespace ATest
 		            })
 		    };
 		    _tree.Expanded += (sender, args) => GetNodeFromTreeItem(args.Item).Expanded = true;
-            _tree.Collapsed += (sender, args) => GetNodeFromTreeItem(args.Item).Expanded = false;
+		    _tree.Collapsed += (sender, args) => GetNodeFromTreeItem(args.Item).Expanded = false;
 		    _tree.SelectionChanged += (sender, args) =>
 		    {
 		        if (_tree.SelectedItem != null)
@@ -153,7 +186,9 @@ namespace ATest
 		        Content = _nodeContent
 		    });
 		    RefreshTree();
-            layout.EndHorizontal();
+		    layout.EndHorizontal();
+
+		    #endregion
         }
 
 	    private static Node GetNodeFromTreeItem(ITreeGridItem item)
@@ -194,9 +229,29 @@ namespace ATest
 	    public void ShowNode(Node node)
 	    {
 	        _nodeContent.Items.Clear();
-	        var nameBox = new TextBox {Text = node.Name};
-	        nameBox.TextChanged += (sender, args) => node.Name = nameBox.Text;
-            _nodeContent.Items.Add(nameBox);
+	        var nameBox = new TextBox
+	        {
+	            Text = node.Name
+	        };
+	        nameBox.TextChanged += (sender, args) =>
+	        {
+	            node.Name = nameBox.Text;
+                RefreshTree();
+	        };
+            _nodeContent.Items.Add(new StackLayout
+            {
+                Orientation = Orientation.Horizontal,
+                Items =
+                {
+                    new Label
+                    {
+                        Text = "Title:",
+                        Font = new Font(SystemFont.Bold),
+                        Width = 35
+                    },
+                    nameBox
+                }
+            });
 	        var testCase = node as TestCase;
 	        if (testCase == null) return;
 	        var performed = new CheckBox
