@@ -10,7 +10,7 @@ using Eto.Drawing;
 
 namespace ATest
 {
-	public class MainForm : Form
+	public class AtestForm : Form
 	{
 	    private readonly string _lastSaveLocationFile;
 	    private readonly TreeGridView _tree;
@@ -30,7 +30,7 @@ namespace ATest
 	        }
 	    }
 
-	    public MainForm()
+	    public AtestForm()
 		{
 			Title = "ATest";
 			ClientSize = new Size(800, 600);
@@ -174,7 +174,8 @@ namespace ATest
 		            {
 		                Text = "Add Test Case",
 		                Command = addTestCaseCommand
-		            })
+		            }),
+                AllowDrop = true
 		    };
 		    _tree.Expanded += (sender, args) => GetNodeFromTreeItem(args.Item).Expanded = true;
 		    _tree.Collapsed += (sender, args) => GetNodeFromTreeItem(args.Item).Expanded = false;
@@ -185,7 +186,33 @@ namespace ATest
 		            ShowNode(GetNodeFromTreeItem(_tree.SelectedItem));
 		        }
 		    };
-		    layout.Add(_tree);
+		    _tree.CellClick += (sender, args) =>
+		    {
+		        if ((args.Buttons & MouseButtons.Primary) != 0)
+		        {
+		            var item = (ITreeGridItem) args.Item;
+		            _tree.SelectedItem = item;
+		            DoDragDrop(new DataObject(), DragEffects.Move);
+		        }
+		    };
+		    _tree.DragOver += (sender, args) =>
+		    {
+		        args.Effects = DragEffects.Move;
+		    };
+		    _tree.DragDrop += (sender, args) =>
+		    {
+		        var drag = _tree.GetDragInfo(args);
+		        if (drag.Item == null
+                || drag.Item == _tree.SelectedItem
+                || drag.Position != GridDragPosition.Over
+                || _tree.SelectedItem.Parent == null
+                || GetNodeFromTreeItem(drag.Item) is TestCase
+                || IsChildOf((ITreeGridItem) drag.Item, _tree.SelectedItem)) return;
+		        GetNodeFromTreeItem(_tree.SelectedItem.Parent).Children.Remove(GetNodeFromTreeItem(_tree.SelectedItem));
+		        GetNodeFromTreeItem(drag.Item).Children.Add(GetNodeFromTreeItem(_tree.SelectedItem));
+		        RefreshTree();
+            };
+            layout.Add(_tree);
 		    layout.Add(new Panel
 		    {
 		        Content = _nodeContent
@@ -196,7 +223,7 @@ namespace ATest
 		    #endregion
         }
 
-	    private static Node GetNodeFromTreeItem(ITreeGridItem item)
+	    public static Node GetNodeFromTreeItem(object item)
 	    {
 	        return (item as TreeGridItem)?.Tag as Node;
 	    }
@@ -209,6 +236,19 @@ namespace ATest
 	            return testCase.Performed;
 	        }
 	        return node.Children.All(IsNodePerformed);
+	    }
+
+	    public static bool IsChildOf(ITreeGridItem item, ITreeGridItem possibleParent)
+	    {
+	        while (item != null)
+	        {
+	            if (item.Parent == possibleParent)
+	            {
+	                return true;
+	            }
+	            item = item.Parent;
+	        }
+	        return false;
 	    }
 
         public void RefreshTree()
@@ -235,7 +275,8 @@ namespace ATest
 	    {
 	        _nodeContent.Items.Clear();
 	        foreach (var prop in node.GetType().GetRuntimeProperties()
-                .Where(prop => prop.CustomAttributes.Any(attr => attr.AttributeType == typeof(NodePropertyAttribute))))
+                .Where(prop => prop.IsDefined(typeof(NodePropertyAttribute)))
+                .OrderBy(prop => ((NodePropertyAttribute)prop.GetCustomAttribute(typeof(NodePropertyAttribute))).Priority))
 	        {
 	            var val = prop.GetValue(node);
 	            var type = prop.PropertyType;

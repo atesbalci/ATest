@@ -9,11 +9,13 @@ namespace ATest.NodeSystem
     [AttributeUsage(AttributeTargets.Property)]
     public class NodePropertyAttribute : Attribute
     {
-        public Parameter AdditionalParameter { get; private set; }
+        public Parameter AdditionalParameter { get; }
+        public int Priority { get; }
 
-        public NodePropertyAttribute(Parameter additionalParameter = Parameter.None)
+        public NodePropertyAttribute(Parameter additionalParameter = Parameter.None, int priority = 0)
         {
             AdditionalParameter = additionalParameter;
+            Priority = priority;
         }
 
         public enum Parameter
@@ -25,7 +27,7 @@ namespace ATest.NodeSystem
 
     public abstract class Node
     {
-        [NodeProperty] public string Name { get; set; }
+        [NodeProperty(NodePropertyAttribute.Parameter.None, int.MinValue)] public string Name { get; set; }
         public bool Expanded { get; set; }
         public IList<Node> Children { get; set; }
 
@@ -52,7 +54,7 @@ namespace ATest.NodeSystem
         private IEnumerable<XAttribute> NodePropertiesToXml()
         {
             var retVal = new LinkedList<XAttribute>();
-            foreach (var prop in GetType().GetRuntimeProperties().Where(prop => prop.CustomAttributes.Any(x => x.AttributeType == typeof(NodePropertyAttribute))))
+            foreach (var prop in GetType().GetRuntimeProperties().Where(prop => prop.IsDefined(typeof(NodePropertyAttribute))))
             {
                 retVal.AddLast(new XAttribute(prop.Name, prop.GetValue(this)));
             }

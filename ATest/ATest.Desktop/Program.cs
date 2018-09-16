@@ -8,7 +8,7 @@ namespace ATest.Desktop
 		[STAThread]
 		static void Main(string[] args)
 		{
-			new Application(Eto.Platform.Detect).Run(new MainForm());
+			new Application(Eto.Platform.Detect).Run(new AtestForm());
 		}
 	}
 }
