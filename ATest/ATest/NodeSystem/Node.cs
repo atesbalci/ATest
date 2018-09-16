@@ -3,12 +3,25 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Xml.Linq;
-using Eto;
 
 namespace ATest.NodeSystem
 {
     [AttributeUsage(AttributeTargets.Property)]
-    public class NodePropertyAttribute : Attribute { }
+    public class NodePropertyAttribute : Attribute
+    {
+        public Parameter AdditionalParameter { get; private set; }
+
+        public NodePropertyAttribute(Parameter additionalParameter = Parameter.None)
+        {
+            AdditionalParameter = additionalParameter;
+        }
+
+        public enum Parameter
+        {
+            None,
+            MultiLineString
+        }
+    }
 
     public abstract class Node
     {
@@ -80,6 +93,10 @@ namespace ATest.NodeSystem
             if (type == typeof(bool))
             {
                 return bool.Parse(input);
+            }
+            if (type == typeof(DateTime))
+            {
+                return DateTime.Parse(input);
             }
             return input;
         }

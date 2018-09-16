@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Xml.Linq;
 using ATest.NodeSystem;
 using Eto;
@@ -52,7 +53,10 @@ namespace ATest
                 OpenFile = File.ReadAllText(_lastSaveLocationFile);
                 _rootNode.FromXml(XDocument.Parse(File.ReadAllText(OpenFile)).Root);
 		    }
-		    catch (Exception e) { }
+		    catch (Exception)
+		    {
+		        // ignored
+		    }
 
 		    var filter = new FileFilter
 		    {
@@ -116,7 +120,8 @@ namespace ATest
 		    layout.BeginHorizontal();
 		    _nodeContent = new StackLayout
 		    {
-		        Padding = 10
+		        Padding = 10,
+                Spacing = 5
 		    };
 		    var addCategoryCommand = new Command();
 		    addCategoryCommand.Executed += (sender, args) =>
@@ -229,42 +234,108 @@ namespace ATest
 	    public void ShowNode(Node node)
 	    {
 	        _nodeContent.Items.Clear();
-	        var nameBox = new TextBox
+	        foreach (var prop in node.GetType().GetRuntimeProperties()
+                .Where(prop => prop.CustomAttributes.Any(attr => attr.AttributeType == typeof(NodePropertyAttribute))))
 	        {
-	            Text = node.Name
-	        };
-	        nameBox.TextChanged += (sender, args) =>
-	        {
-	            node.Name = nameBox.Text;
-                RefreshTree();
-	        };
-            _nodeContent.Items.Add(new StackLayout
-            {
-                Orientation = Orientation.Horizontal,
-                Items =
-                {
-                    new Label
-                    {
-                        Text = "Title:",
-                        Font = new Font(SystemFont.Bold),
-                        Width = 35
-                    },
-                    nameBox
-                }
-            });
-	        var testCase = node as TestCase;
-	        if (testCase == null) return;
-	        var performed = new CheckBox
-	        {
-	            Text = "Performed",
-	            Checked = testCase.Performed
-	        };
-	        performed.CheckedChanged += (sender, args) =>
-	        {
-	            testCase.Performed = performed.Checked ?? false;
-                RefreshTree();
-	        };
-            _nodeContent.Items.Add(performed);
+	            var val = prop.GetValue(node);
+	            var type = prop.PropertyType;
+	            var layout = new StackLayout
+	            {
+	                Orientation = Orientation.Horizontal,
+                    Spacing = 5
+	            };
+	            layout.Items.Add(new Label
+	            {
+	                Font = new Font(SystemFont.Bold, 12f),
+	                Text = prop.Name + ":",
+	                Width = 120,
+                    TextAlignment = TextAlignment.Right
+	            });
+
+                if (val == null) continue;
+
+	            Control control = null;
+	            if (type == typeof(string) || type == typeof(int) || type == typeof(float))
+	            {
+	                var param = ((NodePropertyAttribute) prop.GetCustomAttribute(typeof(NodePropertyAttribute)))
+	                    .AdditionalParameter;
+	                TextControl text;
+	                if (param == NodePropertyAttribute.Parameter.MultiLineString)
+	                {
+	                    text = new TextArea();
+	                }
+	                else
+	                {
+	                    text = new TextBox();
+	                }
+                    text.Size = new Size(200, text.Size.Height);
+	                text.Text = val.ToString();
+	                text.TextChanged += (sender, args) =>
+	                {
+	                    object newVal = null;
+	                    if (type == typeof(int))
+	                    {
+	                        int i;
+	                        if (int.TryParse(text.Text, out i))
+	                        {
+	                            newVal = i;
+	                        }
+	                    }
+                        else if (type == typeof(float))
+	                    {
+	                        float f;
+	                        if (float.TryParse(text.Text, out f))
+	                        {
+	                            newVal = f;
+	                        }
+	                    }
+	                    else
+	                    {
+	                        newVal = text.Text;
+	                    }
+
+                        if(newVal != null)
+                        {
+                            prop.SetValue(node, newVal);
+                            RefreshTree();
+                        }
+	                };
+	                control = text;
+	            }
+	            else if (type == typeof(bool))
+	            {
+	                var checkBox = new CheckBox
+	                {
+	                    Checked = (bool) val
+	                };
+	                checkBox.CheckedChanged += (sender, args) =>
+	                {
+                        prop.SetValue(node, checkBox.Checked);
+                        RefreshTree();
+	                };
+	                control = checkBox;
+	            }
+                else if (type == typeof(DateTime))
+	            {
+	                var dateTimePicker = new DateTimePicker
+	                {
+	                    Value = (DateTime) val
+	                };
+	                dateTimePicker.ValueChanged += (sender, args) =>
+	                {
+                        prop.SetValue(node, dateTimePicker.Value);
+                        RefreshTree();
+	                };
+	                control = dateTimePicker;
+	            }
+
+	            if (control != null)
+	            {
+	                control.Width = 300;
+	                layout.Items.Add(control);
+	            }
+                _nodeContent.Items.Add(layout);
+	        }
 	    }
     }
 }
