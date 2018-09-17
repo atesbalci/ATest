@@ -18,6 +18,7 @@ namespace ATest
 	    private readonly Node _rootNode;
 
 	    private string _openFile;
+	    private Node _lastShownNode;
 
 	    private string OpenFile
 	    {
@@ -313,6 +314,8 @@ namespace ATest
 
 	    public void ShowNode(Node node)
 	    {
+	        if (_lastShownNode == node || node == _rootNode) return;
+	        _lastShownNode = node;
 	        _nodeContent.Items.Clear();
 	        foreach (var prop in node.GetType().GetRuntimeProperties()
                 .Where(prop => prop.IsDefined(typeof(NodePropertyAttribute)))
@@ -343,9 +346,16 @@ namespace ATest
 	                TextControl text;
 	                if (param == NodePropertyAttribute.Parameter.MultiLineString)
 	                {
-	                    text = new TextArea();
-	                }
-	                else
+	                    var textArea = new TextArea();
+	                    text = textArea;
+                        textArea.TextChanged += (sender, args) =>
+                        {
+                            var font = textArea.Font;
+                            var height = font.MeasureString(textArea.Text + "a\na").Height; //Don't ask me why
+                            textArea.Height = Math.Max(textArea.Height, (int)height);
+                        };
+                    }
+                    else
 	                {
 	                    text = new TextBox();
 	                }
