@@ -174,8 +174,7 @@ namespace ATest
 		            {
 		                Text = "Add Test Case",
 		                Command = addTestCaseCommand
-		            }),
-                AllowDrop = true
+		            })
 		    };
 		    _tree.Expanded += (sender, args) => GetNodeFromTreeItem(args.Item).Expanded = true;
 		    _tree.Collapsed += (sender, args) => GetNodeFromTreeItem(args.Item).Expanded = false;
@@ -188,36 +187,39 @@ namespace ATest
 		    };
 		    _tree.CellClick += (sender, args) =>
 		    {
-		        if ((args.Buttons & MouseButtons.Primary) != 0)
+		        if (args.Modifiers == Keys.Control && args.Buttons == MouseButtons.Primary)
 		        {
-		            var item = (ITreeGridItem) args.Item;
-		            _tree.SelectedItem = item;
-		            DoDragDrop(new DataObject(), DragEffects.Move);
+		            var selected = GetNodeFromTreeItem(_tree.SelectedItem);
+		            if (selected == null || selected == _rootNode) return;
+		            var newParent = GetNodeFromTreeItem(args.Item);
+		            if (newParent is TestCase) return;
+		            var parent = GetNodeFromTreeItem(_tree.SelectedItem.Parent);
+		            parent.Children.Remove(selected);
+                    newParent.Children.Add(selected);
+		            args.Handled = true;
+                    RefreshTree();
 		        }
-		    };
-		    _tree.DragOver += (sender, args) =>
-		    {
-		        args.Effects = DragEffects.Move;
-		    };
-		    _tree.DragDrop += (sender, args) =>
-		    {
-		        var drag = _tree.GetDragInfo(args);
-		        if (drag.Item == null
-                || drag.Item == _tree.SelectedItem
-                || drag.Position != GridDragPosition.Over
-                || _tree.SelectedItem.Parent == null
-                || GetNodeFromTreeItem(drag.Item) is TestCase
-                || IsChildOf((ITreeGridItem) drag.Item, _tree.SelectedItem)) return;
-		        GetNodeFromTreeItem(_tree.SelectedItem.Parent).Children.Remove(GetNodeFromTreeItem(_tree.SelectedItem));
-		        GetNodeFromTreeItem(drag.Item).Children.Add(GetNodeFromTreeItem(_tree.SelectedItem));
-		        RefreshTree();
             };
 		    _tree.KeyDown += (sender, args) =>
 		    {
 		        if (args.Control)
 		        {
-		            
-		        }
+		            switch (args.Key)
+		            {
+		                case Keys.Up:
+                            MoveNode(-1);
+		                    args.Handled = true;
+		                    break;
+                        case Keys.Down:
+                            MoveNode(1);
+		                    args.Handled = true;
+                            break;
+                        case Keys.D:
+                            RemoveNode();
+                            args.Handled = true;
+                            break;
+		            }
+                }
 		    };
             layout.Add(_tree);
 		    layout.Add(new Panel
@@ -258,13 +260,34 @@ namespace ATest
 	        return false;
 	    }
 
+	    public void MoveNode(int amount)
+	    {
+	        var node = GetNodeFromTreeItem(_tree.SelectedItem);
+	        if (node == null || node == _rootNode) return;
+	        var parent = GetNodeFromTreeItem(_tree.SelectedItem.Parent);
+            var index = parent.Children.IndexOf(node);
+            parent.Children.RemoveAt(index);
+	        var newIndex = Math.Max(0, Math.Min(parent.Children.Count, index + amount));
+            parent.Children.Insert(newIndex, node);
+            RefreshTree();
+	    }
+
+	    public void RemoveNode()
+	    {
+	        var node = GetNodeFromTreeItem(_tree.SelectedItem);
+	        if (node == null || node == _rootNode) return;
+            var parent = GetNodeFromTreeItem(_tree.SelectedItem.Parent);
+	        parent.Children.Remove(node);
+            RefreshTree();
+	    }
+
         public void RefreshTree()
 	    {
-	        _tree.DataStore = new TreeGridItemCollection { Populate(_rootNode) };
+	        _tree.DataStore = new TreeGridItemCollection { Populate(_rootNode, GetNodeFromTreeItem(_tree.SelectedItem)) };
             _tree.ReloadData();
 	    }
 
-	    public NodeTreeGridItem Populate(Node node)
+	    public NodeTreeGridItem Populate(Node node, Node selectedNode = null)
 	    {
 	        var retVal = new NodeTreeGridItem
             {
@@ -277,9 +300,13 @@ namespace ATest
 	            AssignedNode = node,
                 Expanded = node.Expanded
 	        };
+	        if (selectedNode == node)
+	        {
+	            _tree.SelectedItem = retVal;
+	        }
 	        foreach (var nodeChild in node.Children)
 	        {
-	            retVal.Children.Add(Populate(nodeChild));
+	            retVal.Children.Add(Populate(nodeChild, selectedNode));
 	        }
 	        return retVal;
 	    }
@@ -287,35 +314,6 @@ namespace ATest
 	    public void ShowNode(Node node)
 	    {
 	        _nodeContent.Items.Clear();
-	        if (node != _rootNode)
-	        {
-                var layout = new StackLayout { Orientation = Orientation.Horizontal };
-	            var upButton = new Button
-	            {
-	                Text = "Up"
-	            };
-	            var downButton = new Button
-	            {
-	                Text = "Down"
-	            };
-                upButton.Click += (sender, args) =>
-	            {
-                    var parent = GetNodeFromTreeItem(_tree.SelectedItem.Parent);
-	                var index = parent.Children.IndexOf(node);
-                    parent.Children.RemoveAt(index);
-                    parent.Children.Insert(Math.Max(index - 1, 0), node);
-	            };
-                downButton.Click += (sender, args) =>
-	            {
-	                var parent = GetNodeFromTreeItem(_tree.SelectedItem.Parent);
-	                var index = parent.Children.IndexOf(node);
-                    parent.Children.RemoveAt(index);
-                    parent.Children.Insert(Math.Min(index + 1, parent.Children.Count - +1), node);
-                };
-                layout.Items.Add(upButton);
-                layout.Items.Add(downButton);
-                _nodeContent.Items.Add(layout);
-	        }
 	        foreach (var prop in node.GetType().GetRuntimeProperties()
                 .Where(prop => prop.IsDefined(typeof(NodePropertyAttribute)))
                 .OrderBy(prop => ((NodePropertyAttribute)prop.GetCustomAttribute(typeof(NodePropertyAttribute))).Priority))
