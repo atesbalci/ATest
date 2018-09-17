@@ -29,11 +29,13 @@ namespace ATest.NodeSystem
     {
         [NodeProperty(NodePropertyAttribute.Parameter.None, int.MinValue)] public string Name { get; set; }
         public bool Expanded { get; set; }
+        [NodeProperty(NodePropertyAttribute.Parameter.MultiLineString, int.MinValue + 2)] public string Description { get; set; }
         public IList<Node> Children { get; set; }
 
         protected Node()
         {
             Children = new List<Node>();
+            Description = string.Empty;
         }
 
         public virtual XElement ToXml()

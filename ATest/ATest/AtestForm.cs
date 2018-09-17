@@ -143,13 +143,6 @@ namespace ATest
 		            RefreshTree();
 		        }
 		    };
-		    var cell = new DrawableCell();
-		    cell.Paint += (sender, args) =>
-		    {
-		        var node = GetNodeFromTreeItem((ITreeGridItem) args.Item);
-		        var color = args.IsSelected ? Colors.White : IsNodePerformed(node) ? new Color(0f, 0.5f, 0f) : Colors.Red;
-		        args.Graphics.DrawText(new Font(SystemFont.Bold), color, args.ClipRectangle.Location, node.Name);
-		    };
 		    _tree = new TreeGridView
 		    {
 		        RowHeight = 20,
@@ -158,11 +151,18 @@ namespace ATest
 		        {
 		            new GridColumn
 		            {
-		                DataCell = cell,
+		                DataCell = new TextBoxCell(0),
 		                HeaderText = "Categories",
 		                AutoSize = false,
-		                Width = 300
-		            }
+                        Width = 200
+		            },
+                    new GridColumn
+                    {
+                        DataCell = new TextBoxCell(1),
+                        HeaderText = "Status",
+                        AutoSize = false,
+                        Width = 100
+                    }
 		        },
 		        ContextMenu = new ContextMenu(
 		            new ButtonMenuItem
@@ -212,6 +212,13 @@ namespace ATest
 		        GetNodeFromTreeItem(drag.Item).Children.Add(GetNodeFromTreeItem(_tree.SelectedItem));
 		        RefreshTree();
             };
+		    _tree.KeyDown += (sender, args) =>
+		    {
+		        if (args.Control)
+		        {
+		            
+		        }
+		    };
             layout.Add(_tree);
 		    layout.Add(new Panel
 		    {
@@ -225,7 +232,7 @@ namespace ATest
 
 	    public static Node GetNodeFromTreeItem(object item)
 	    {
-	        return (item as TreeGridItem)?.Tag as Node;
+	        return (item as NodeTreeGridItem)?.AssignedNode;
 	    }
 
 	    public static bool IsNodePerformed(Node node)
@@ -257,11 +264,17 @@ namespace ATest
             _tree.ReloadData();
 	    }
 
-	    public TreeGridItem Populate(Node node)
+	    public NodeTreeGridItem Populate(Node node)
 	    {
-	        var retVal = new TreeGridItem
-	        {
-	            Tag = node,
+	        var retVal = new NodeTreeGridItem
+            {
+
+                Values = new object[]
+                {
+                    node.Name,
+                    (IsNodePerformed(node) ? "" : "Not ") + "Performed"
+                },
+	            AssignedNode = node,
                 Expanded = node.Expanded
 	        };
 	        foreach (var nodeChild in node.Children)
@@ -274,6 +287,35 @@ namespace ATest
 	    public void ShowNode(Node node)
 	    {
 	        _nodeContent.Items.Clear();
+	        if (node != _rootNode)
+	        {
+                var layout = new StackLayout { Orientation = Orientation.Horizontal };
+	            var upButton = new Button
+	            {
+	                Text = "Up"
+	            };
+	            var downButton = new Button
+	            {
+	                Text = "Down"
+	            };
+                upButton.Click += (sender, args) =>
+	            {
+                    var parent = GetNodeFromTreeItem(_tree.SelectedItem.Parent);
+	                var index = parent.Children.IndexOf(node);
+                    parent.Children.RemoveAt(index);
+                    parent.Children.Insert(Math.Max(index - 1, 0), node);
+	            };
+                downButton.Click += (sender, args) =>
+	            {
+	                var parent = GetNodeFromTreeItem(_tree.SelectedItem.Parent);
+	                var index = parent.Children.IndexOf(node);
+                    parent.Children.RemoveAt(index);
+                    parent.Children.Insert(Math.Min(index + 1, parent.Children.Count - +1), node);
+                };
+                layout.Items.Add(upButton);
+                layout.Items.Add(downButton);
+                _nodeContent.Items.Add(layout);
+	        }
 	        foreach (var prop in node.GetType().GetRuntimeProperties()
                 .Where(prop => prop.IsDefined(typeof(NodePropertyAttribute)))
                 .OrderBy(prop => ((NodePropertyAttribute)prop.GetCustomAttribute(typeof(NodePropertyAttribute))).Priority))
@@ -378,5 +420,10 @@ namespace ATest
                 _nodeContent.Items.Add(layout);
 	        }
 	    }
+    }
+
+    public class NodeTreeGridItem : TreeGridItem
+    {
+        public Node AssignedNode { get; set; }
     }
 }
