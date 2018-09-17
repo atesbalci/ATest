@@ -36,9 +36,10 @@ namespace ATest
 			Title = "ATest";
 			ClientSize = new Size(800, 600);
 
-            var layout = new DynamicLayout()
+            var layout = new DynamicLayout
             {
-                Padding = 10
+                Padding = 10,
+                Spacing = new Size(10, 10)
             };
 
 		    Content = layout;
@@ -46,6 +47,12 @@ namespace ATest
 		    _rootNode = new Category { Name = "Root" };
 		    _lastSaveLocationFile = Path.Combine(EtoEnvironment.GetFolderPath(EtoSpecialFolder.ApplicationSettings),
 		        "LastSaveLocation.txt");
+
+		    layout.Add(new Label
+		    {
+		        Text = "Control+UP/DOWN to move the selected node.\n" +
+		               "Control+Click to change the parent of the selected node."
+		    });
 
             #region Save/Load Stuff
 
