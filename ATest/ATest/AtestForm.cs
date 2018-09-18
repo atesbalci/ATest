@@ -34,7 +34,7 @@ namespace ATest
 	    public AtestForm()
 		{
 			Title = "ATest";
-			ClientSize = new Size(800, 600);
+			ClientSize = new Size(900, 700);
 
             var layout = new DynamicLayout
             {
@@ -50,8 +50,9 @@ namespace ATest
 
 		    layout.Add(new Label
 		    {
-		        Text = "Control+UP/DOWN to move the selected node.\n" +
-		               "Control+Click to change the parent of the selected node."
+		        Text = "Alt+UP/DOWN to move the selected node.\n" +
+		               "Alt+Click to change the parent of the selected node.\n" +
+                       "Alt+D to remove node."
 		    });
 
             #region Save/Load Stuff
@@ -195,7 +196,7 @@ namespace ATest
 		    };
 		    _tree.CellClick += (sender, args) =>
 		    {
-		        if (args.Modifiers == Keys.Control && args.Buttons == MouseButtons.Primary)
+                if (args.Modifiers == Keys.Alt && args.Buttons == MouseButtons.Primary)
 		        {
 		            var selected = GetNodeFromTreeItem(_tree.SelectedItem);
 		            if (selected == null || selected == _rootNode) return;
@@ -204,13 +205,13 @@ namespace ATest
 		            var parent = GetNodeFromTreeItem(_tree.SelectedItem.Parent);
 		            parent.Children.Remove(selected);
                     newParent.Children.Add(selected);
-		            args.Handled = true;
+                    args.Handled = true;
                     RefreshTree();
 		        }
             };
 		    _tree.KeyDown += (sender, args) =>
 		    {
-		        if (args.Control)
+                if (args.Alt)
 		        {
 		            switch (args.Key)
 		            {
@@ -291,11 +292,31 @@ namespace ATest
 
         public void RefreshTree()
 	    {
-	        _tree.DataStore = new TreeGridItemCollection { Populate(_rootNode, GetNodeFromTreeItem(_tree.SelectedItem)) };
+            var selected = GetNodeFromTreeItem(_tree.SelectedItem);
+            var col = new TreeGridItemCollection { Populate(_rootNode) };
+            _tree.DataStore = col;
             _tree.ReloadData();
+            if (selected != null)
+            {
+                _tree.SelectedItem = FindNode((TreeGridItem)col[0], selected);
+            }
 	    }
 
-	    public NodeTreeGridItem Populate(Node node, Node selectedNode = null)
+        public static TreeGridItem FindNode(TreeGridItem item, Node node)
+        {
+            if (GetNodeFromTreeItem(item) == node) return item;
+            foreach(var child in item.Children)
+            {
+                var result = FindNode((TreeGridItem)child, node);
+                if(result != null)
+                {
+                    return result;
+                }
+            }
+            return null;
+        }
+
+	    public NodeTreeGridItem Populate(Node node)
 	    {
 	        var retVal = new NodeTreeGridItem
             {
@@ -308,13 +329,9 @@ namespace ATest
 	            AssignedNode = node,
                 Expanded = node.Expanded
 	        };
-	        if (selectedNode == node)
-	        {
-	            _tree.SelectedItem = retVal;
-	        }
 	        foreach (var nodeChild in node.Children)
 	        {
-	            retVal.Children.Add(Populate(nodeChild, selectedNode));
+	            retVal.Children.Add(Populate(nodeChild));
 	        }
 	        return retVal;
 	    }
