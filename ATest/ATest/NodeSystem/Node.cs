@@ -27,13 +27,17 @@ namespace ATest.NodeSystem
 
     public abstract class Node
     {
-        [NodeProperty(NodePropertyAttribute.Parameter.None, int.MinValue)] public string Name { get; set; }
         public bool Expanded { get; set; }
+        [NodeProperty(NodePropertyAttribute.Parameter.None, int.MinValue)]
+        public string Name { get; set; }
+        [NodeProperty(NodePropertyAttribute.Parameter.None, int.MinValue + 1)]
+        public bool Performed { get; set; }
         [NodeProperty(NodePropertyAttribute.Parameter.MultiLineString, int.MinValue + 2)] public string Description { get; set; }
         public IList<Node> Children { get; set; }
 
         protected Node()
         {
+            Name = string.Empty;
             Children = new List<Node>();
             Description = string.Empty;
         }

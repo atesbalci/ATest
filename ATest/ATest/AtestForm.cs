@@ -35,6 +35,7 @@ namespace ATest
 		{
 			Title = "ATest";
 			ClientSize = new Size(900, 700);
+		    var modifier = Platform.Detect.IsMac ? Keys.Alt : Keys.Control;
 
             var layout = new DynamicLayout
             {
@@ -47,13 +48,13 @@ namespace ATest
 		    _rootNode = new Category { Name = "Root" };
 		    _lastSaveLocationFile = Path.Combine(EtoEnvironment.GetFolderPath(EtoSpecialFolder.ApplicationSettings),
 		        "LastSaveLocation.txt");
-
+            
 		    layout.Add(new Label
 		    {
-		        Text = "Alt+UP/DOWN to move the selected node.\n" +
-		               "Alt+Click to change the parent of the selected node.\n" +
-                       "Alt+D to remove node."
-		    });
+		        Text = modifier + "+UP/DOWN to move the selected node.\n" +
+		               modifier + "+Click to change the parent of the selected node.\n" +
+		               modifier + "+D to remove node."
+            });
 
             #region Save/Load Stuff
 
@@ -196,12 +197,12 @@ namespace ATest
 		    };
 		    _tree.CellClick += (sender, args) =>
 		    {
-                if (args.Modifiers == Keys.Alt && args.Buttons == MouseButtons.Primary)
+                if (args.Modifiers == modifier && args.Buttons == MouseButtons.Primary)
 		        {
 		            var selected = GetNodeFromTreeItem(_tree.SelectedItem);
 		            if (selected == null || selected == _rootNode) return;
 		            var newParent = GetNodeFromTreeItem(args.Item);
-		            if (newParent is TestCase) return;
+		            if (newParent is TestCase || IsChildOf((ITreeGridItem) args.Item, _tree.SelectedItem)) return;
 		            var parent = GetNodeFromTreeItem(_tree.SelectedItem.Parent);
 		            parent.Children.Remove(selected);
                     newParent.Children.Add(selected);
@@ -211,7 +212,7 @@ namespace ATest
             };
 		    _tree.KeyDown += (sender, args) =>
 		    {
-                if (args.Alt)
+                if (modifier == Keys.Alt ? args.Alt : args.Control)
 		        {
 		            switch (args.Key)
 		            {
@@ -248,12 +249,13 @@ namespace ATest
 
 	    public static bool IsNodePerformed(Node node)
 	    {
-	        var testCase = node as TestCase;
-	        if (testCase != null)
-	        {
-	            return testCase.Performed;
-	        }
-	        return node.Children.All(IsNodePerformed);
+	        //var testCase = node as TestCase;
+	        //if (testCase != null)
+	        //{
+	        //    return testCase.Performed;
+	        //}
+	        //return node.Children.All(IsNodePerformed);
+	        return node.Performed;
 	    }
 
 	    public static bool IsChildOf(ITreeGridItem item, ITreeGridItem possibleParent)
@@ -324,7 +326,8 @@ namespace ATest
                 Values = new object[]
                 {
                     node.Name,
-                    (IsNodePerformed(node) ? "" : "Not ") + "Performed"
+                    node == _rootNode ? string.Empty : 
+                        (IsNodePerformed(node) ? "" : "Not ") + "Performed"
                 },
 	            AssignedNode = node,
                 Expanded = node.Expanded
