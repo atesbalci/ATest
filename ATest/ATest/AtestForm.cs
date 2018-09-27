@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -16,9 +17,11 @@ namespace ATest
 	    private readonly TreeGridView _tree;
 	    private readonly StackLayout _nodeContent;
 	    private readonly Node _rootNode;
+	    private readonly FileFilter _filter;
 
-	    private string _openFile;
+        private string _openFile;
 	    private Node _lastShownNode;
+	    private bool _isChanged;
 
 	    private string OpenFile
 	    {
@@ -58,17 +61,20 @@ namespace ATest
 
             #region Save/Load Stuff
 
+		    _isChanged = true;
             try
             {
-                OpenFile = File.ReadAllText(_lastSaveLocationFile);
-                _rootNode.FromXml(XDocument.Parse(File.ReadAllText(OpenFile)).Root);
-		    }
+                var file = File.ReadAllText(_lastSaveLocationFile);
+                _rootNode.FromXml(XDocument.Parse(File.ReadAllText(file)).Root);
+                OpenFile = file;
+                _isChanged = false;
+            }
 		    catch (Exception)
 		    {
 		        // ignored
 		    }
 
-		    var filter = new FileFilter
+		    _filter = new FileFilter
 		    {
 		        Extensions = new[] { "xml", "XML" },
 		        Name = "XML"
@@ -78,8 +84,8 @@ namespace ATest
 		    {
 		        var dialog = new OpenFileDialog
 		        {
-		            Filters = { filter },
-		            CurrentFilter = filter
+		            Filters = { _filter },
+		            CurrentFilter = _filter
 		        };
 		        var result = dialog.ShowDialog(this);
 		        if (result == DialogResult.Yes || result == DialogResult.Ok)
@@ -90,38 +96,48 @@ namespace ATest
 		        }
 		    };
 		    var saveAsCommand = new Command { ToolBarText = "Save As..." };
-		    saveAsCommand.Executed += (sender, e) =>
-		    {
-		        var dialog = new SaveFileDialog
-		        {
-		            Filters = { filter },
-		            CurrentFilter = filter
-		        };
-		        var result = dialog.ShowDialog(this);
-		        if (result == DialogResult.Yes || result == DialogResult.Ok)
-		        {
-		            var name = dialog.FileName;
-		            if (!name.ToLower().EndsWith(".xml"))
-		            {
-		                name += ".xml";
-		            }
-		            OpenFile = name;
-		            File.WriteAllText(name, _rootNode.ToXml().ToString());
-		        }
-		    };
+		    saveAsCommand.Executed += (sender, e) => SaveAs();
 		    var saveCommand = new Command { ToolBarText = "Save" };
-		    saveCommand.Executed += (sender, e) =>
-		    {
-		        if (!string.IsNullOrEmpty(OpenFile))
-		        {
-		            File.WriteAllText(OpenFile, _rootNode.ToXml().ToString());
-		        }
-		        else
-		        {
-		            saveAsCommand.Execute();
-		        }
-		    };
+		    saveCommand.Executed += (sender, e) => Save();
 		    ToolBar = new ToolBar { Items = { loadCommand, saveCommand, saveAsCommand } };
+
+		    Closing += (sender, args) =>
+		    {
+		        if (!_isChanged) return;
+		        args.Cancel = true;
+                var dialog = new Dialog
+                {
+                    Title = "Save Changes"
+                };
+		        var abortButton = new Button((o, eventArgs) => dialog.Close())
+		        {
+		            Text = "Cancel"
+		        };
+		        var saveButton = new Button((o, eventArgs) =>
+		        {
+                    if(Save())
+                    {
+		                args.Cancel = false;
+                        dialog.Close();
+                    }
+                })
+		        {
+                    Text = "Save"
+		        };
+                var dontSaveButton = new Button((o, eventArgs) =>
+                {
+                    args.Cancel = false;
+                    dialog.Close();
+                })
+                {
+                    Text = "Discard"
+                };
+                dialog.NegativeButtons.Add(abortButton);
+                dialog.PositiveButtons.Add(dontSaveButton);
+                dialog.PositiveButtons.Add(saveButton);
+		        dialog.AbortButton = abortButton;
+                dialog.ShowModal(this);
+		    };
 
             #endregion
 
@@ -302,6 +318,7 @@ namespace ATest
             {
                 _tree.SelectedItem = FindNode((TreeGridItem)col[0], selected);
             }
+	        _isChanged = true;
 	    }
 
         public static TreeGridItem FindNode(TreeGridItem item, Node node)
@@ -454,6 +471,38 @@ namespace ATest
 	            }
                 _nodeContent.Items.Add(layout);
 	        }
+	    }
+
+	    public bool Save()
+	    {
+	        if (!string.IsNullOrEmpty(OpenFile))
+	        {
+	            File.WriteAllText(OpenFile, _rootNode.ToXml().ToString());
+	            return true;
+	        }
+	        return SaveAs();
+	    }
+
+	    public bool SaveAs()
+	    {
+	        var dialog = new SaveFileDialog
+	        {
+	            Filters = { _filter },
+	            CurrentFilter = _filter
+	        };
+	        var result = dialog.ShowDialog(this);
+	        if (result == DialogResult.Yes || result == DialogResult.Ok)
+	        {
+	            var name = dialog.FileName;
+	            if (!name.ToLower().EndsWith(".xml"))
+	            {
+	                name += ".xml";
+	            }
+	            OpenFile = name;
+	            File.WriteAllText(name, _rootNode.ToXml().ToString());
+	            return true;
+	        }
+	        return false;
 	    }
     }
 
