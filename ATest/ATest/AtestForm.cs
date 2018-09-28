@@ -274,7 +274,24 @@ namespace ATest
 	        return node.Performed;
 	    }
 
-	    public static bool IsChildOf(ITreeGridItem item, ITreeGridItem possibleParent)
+	    public static Node FindParentOfNode(Node cur, Node node)
+	    {
+	        if (cur.Children.Contains(node))
+	        {
+	            return cur;
+	        }
+	        foreach (var child in cur.Children)
+	        {
+	            var result = FindParentOfNode(child, node);
+	            if (result != null)
+	            {
+	                return result;
+	            }
+	        }
+	        return null;
+	    }
+
+        public static bool IsChildOf(ITreeGridItem item, ITreeGridItem possibleParent)
 	    {
 	        while (item != null)
 	        {
@@ -448,7 +465,19 @@ namespace ATest
                         prop.SetValue(node, checkBox.Checked);
                         RefreshTree();
 	                };
-	                control = checkBox;
+	                if (prop.Name == "Performed")
+	                {
+	                    checkBox.CheckedChanged += (sender, args) =>
+	                    {
+	                        var parent = FindParentOfNode(_rootNode, node);
+	                        if (parent != null)
+	                        {
+	                            parent.Performed = parent.Children.All(child => child.Performed);
+                                RefreshTree();
+	                        }
+	                    };
+	                }
+                    control = checkBox;
 	            }
                 else if (type == typeof(DateTime))
 	            {
